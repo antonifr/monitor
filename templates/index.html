@@ -50,7 +50,7 @@
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('cpu_temp').innerText = data.cpu_temp + " °C";
-                    document.getElementById('fan_speed').innerText = data.fan_speed + " RPM";
+                    document.getElementById('fan_speed').innerText = data.fan_speed;
                     document.getElementById('disk_temp').innerText = data.disk_temp;
 
                     diskChart.data.datasets[0].data = [data.disk_usage.used_percent, data.disk_usage.free_gb];
