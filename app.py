@@ -10,37 +10,51 @@ except ImportError:
 
 app = Flask(__name__)
 
+# Função para temperatura da CPU
 def get_cpu_temp():
+    # Render (cloud) não possui sensores
+    if os.environ.get("RENDER") == "true":
+        return "N/A - Render"
+
     if platform.system() == "Windows" and wmi:
         c = wmi.WMI(namespace="root\\wmi")
         temps = c.MSAcpi_ThermalZoneTemperature()
         for temp in temps:
-            return round((temp.CurrentTemperature / 10.0) - 273.15, 1)  # Kelvin to Celsius
+            return round((temp.CurrentTemperature / 10.0) - 273.15, 1)
     else:
-        # Linux: usando 'sensors'
-        try:
-            temp = os.popen("sensors | grep 'Package id 0:' | awk '{print $4}'").read()
-            temp = temp.strip().replace("+","").replace("°C","")
-            return float(temp)
-        except:
-            return None
+        # Linux local: usando psutil
+        temps = psutil.sensors_temperatures()
+        if not temps:
+            return "N/A"
+        for name, entries in temps.items():
+            for entry in entries:
+                return entry.current
+        return "N/A"
 
+# Função para rotação do cooler
 def get_fan_speed():
-    if platform.system() == "Windows" and wmi:
-        c = wmi.WMI(namespace="root\\wmi")
-        fans = c.Win32_Fan()
-        for fan in fans:
-            return fan.DesiredSpeed
-    else:
-        # Linux: usando 'sensors'
-        fan = os.popen("sensors | grep fan | awk '{print $2}'").read()
-        return fan.strip()
+    if os.environ.get("RENDER") == "true":
+        return "N/A - Render"
 
+    # psutil não fornece fan speed; precisaria de lm-sensors + parsing
+    return "Não implementado"
+
+# Função para temperatura do disco
 def get_disk_temp():
-    # Exemplo Linux com hddtemp
-    temp = os.popen("hddtemp /dev/sda | awk '{print $NF}'").read()
-    return temp.strip()
+    if os.environ.get("RENDER") == "true":
+        return "N/A - Render"
+    
+    # Exemplo Linux local com psutil
+    temps = psutil.sensors_temperatures()
+    if not temps:
+        return "N/A"
+    for name, entries in temps.items():
+        for entry in entries:
+            if 'nvme' in entry.label.lower() or 'hdd' in entry.label.lower():
+                return entry.current
+    return "N/A"
 
+# Função para uso do disco
 def get_disk_usage():
     usage = psutil.disk_usage('/')
     return {
@@ -62,4 +76,7 @@ def stats():
     })
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0")
+    port = int(os.environ.get("PORT", 5000))
+    # Define variavel RENDER se rodando no Render
+    os.environ["RENDER"] = "true" if "RENDER" in os.environ else "false"
+    app.run(debug=True, host="0.0.0.0", port=port)
